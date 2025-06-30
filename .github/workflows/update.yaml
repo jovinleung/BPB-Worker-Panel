@@ -1,0 +1,115 @@
+name: Automated Update BPB Panel
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup dependencies
+        run: sudo apt-get install -y jq  # 确保 jq 工具已安装
+
+      - name: Get latest release version
+        id: get_release
+        run: |
+          set -euo pipefail
+          api_response=$(curl -sf \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases/latest)
+          
+          latest_tag=$(echo "$api_response" | jq -r '.tag_name // empty')
+          if [ -z "$latest_tag" ]; then
+            echo "::error::Failed to get latest release tag"
+            exit 1
+          fi
+          echo "latest_tag=$latest_tag" >> $GITHUB_ENV
+          echo "Latest version: $latest_tag"
+
+      - name: Check current version
+        id: check_version
+        run: |
+          current_version=""
+          if [ -f "version.txt" ]; then
+            current_version=$(tr -d '\n\r' < version.txt)
+            echo "Current version: $current_version"
+          else
+            echo "version.txt not found, forcing update"
+          fi
+          echo "current_version=$current_version" >> $GITHUB_ENV
+
+      - name: Determine update requirement
+        id: need_update
+        run: |
+          if [ "${{ env.current_version }}" != "${{ env.latest_tag }}" ]; then
+            echo "Update needed (from ${{ env.current_version }} to ${{ env.latest_tag }})"
+            echo "need_update=true" >> $GITHUB_ENV
+          else
+            echo "Already on latest version (${{ env.latest_tag }})"
+            echo "need_update=false" >> $GITHUB_ENV
+          fi
+
+      - name: Download updated worker
+        if: env.need_update == 'true'
+        run: |
+          set -euo pipefail
+          download_url="https://github.com/bia-pain-bache/BPB-Worker-Panel/releases/download/${{ env.latest_tag }}/worker.js"
+          echo "Downloading: $download_url"
+          
+          # 下载前备份旧文件
+          cp _worker.js _worker.js.bak 2>/dev/null || true
+          
+          if ! curl -Lsf -o _worker.js "$download_url"; then
+            echo "::error::Failed to download worker.js"
+            mv _worker.js.bak _worker.js  # 恢复备份
+            exit 1
+          fi
+          
+          # 验证文件有效性
+          if [ ! -s "_worker.js" ]; then
+            echo "::error::Downloaded file is empty"
+            exit 1
+          fi
+          
+          echo "${{ env.latest_tag }}" > version.txt
+          echo "Update files prepared"
+
+      - name: Commit changes
+        if: env.need_update == 'true'
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 检测实际变更
+          git add -f _worker.js version.txt
+          if git diff --staged --quiet; then
+            echo "::warning::No actual changes detected"
+            exit 0
+          fi
+          
+          # 生成智能提交信息
+          changes=$(git diff --staged --shortstat)
+          git commit -m "chore: Auto-update to ${{ env.latest_tag }} [skip ci]
+          
+          Changes: $changes"
+          
+          # 强制推送更新
+          git push origin HEAD:main
+
+      - name: Cleanup workflow runs
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          retain_days: 3      # 保留3天内的记录
+          keep_minimum_runs: 5 # 至少保留5次历史记录
