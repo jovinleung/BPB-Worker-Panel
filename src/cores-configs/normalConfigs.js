@@ -1,4 +1,5 @@
-import { getConfigAddresses, generateRemark, randomUpperCase, getRandomPath, base64EncodeUnicode } from './helpers';
+import { globalConfig, httpConfig } from '../helpers/init';
+import { getConfigAddresses, generateRemark, randomUpperCase, base64EncodeUnicode, generateWsPath } from './helpers';
 
 export async function getNormalConfigs(isFragment) {
     const settings = globalThis.settings;
@@ -7,20 +8,21 @@ export async function getNormalConfigs(isFragment) {
     const Addresses = await getConfigAddresses(isFragment);
 
     const buildConfig = (protocol, addr, port, host, sni, remark) => {
-        const isTLS = globalThis.defaultHttpsPorts.includes(port);
+        const isTLS = httpConfig.defaultHttpsPorts.includes(port);
         const security = isTLS ? 'tls' : 'none';
-        const path = `${getRandomPath(16)}${settings.proxyIPs.length ? `/${btoa(settings.proxyIPs.join(','))}` : ''}`;
+        
         const config = new URL(`${protocol}://config`);
-        let pathPrefix = '';
+        let pathProtocol = 'vl';
 
         if (protocol === atob('dmxlc3M=')) {
-            config.username = globalThis.userID;
+            config.username = globalConfig.userID;
             config.searchParams.append('encryption', 'none');
         } else {
-            config.username = globalThis.TRPassword;
-            pathPrefix = 'tr';
+            config.username = globalConfig.TrPass;
+            pathProtocol = 'tr';
         }
 
+        const path = generateWsPath(pathProtocol);
         config.hostname = addr;
         config.port = port;
         config.searchParams.append('host', host);
@@ -28,12 +30,12 @@ export async function getNormalConfigs(isFragment) {
         config.searchParams.append('security', security);
         config.hash = remark;
 
-        if (globalThis.client === 'singbox') {
+        if (httpConfig.client === 'singbox') {
             config.searchParams.append('eh', 'Sec-WebSocket-Protocol');
             config.searchParams.append('ed', '2560');
-            config.searchParams.append('path', `/${pathPrefix}${path}`);
+            config.searchParams.append('path', path);
         } else {
-            config.searchParams.append('path', `/${pathPrefix}${path}?ed=2560`);
+            config.searchParams.append('path', `${path}?ed=2560`);
         }
 
         if (isTLS) {
@@ -41,7 +43,7 @@ export async function getNormalConfigs(isFragment) {
             config.searchParams.append('fp', settings.fingerprint);
             config.searchParams.append('alpn', 'http/1.1');
 
-            if (globalThis.client === 'hiddify-frag') {
+            if (httpConfig.client === 'hiddify-frag') {
                 config.searchParams.append('fragment', `${settings.fragmentLengthMin}-${settings.fragmentLengthMax},${settings.fragmentIntervalMin}-${settings.fragmentIntervalMax},hellotls`);
             }
         }
@@ -53,8 +55,8 @@ export async function getNormalConfigs(isFragment) {
         Addresses.forEach(addr => {
             const isCustomAddr = settings.customCdnAddrs.includes(addr) && !isFragment;
             const configType = isCustomAddr ? 'C' : isFragment ? 'F' : '';
-            const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(globalThis.hostName);
-            const host = isCustomAddr ? settings.customCdnHost : globalThis.hostName;
+            const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(httpConfig.hostName);
+            const host = isCustomAddr ? settings.customCdnHost : httpConfig.hostName;
 
             const VLRemark = generateRemark(proxyIndex, port, addr, settings.cleanIPs, atob('VkxFU1M='), configType);
             const TRRemark = generateRemark(proxyIndex, port, addr, settings.cleanIPs, atob('VHJvamFu'), configType);
@@ -88,8 +90,8 @@ export async function getNormalConfigs(isFragment) {
     }
 
     const configs = btoa(VLConfs + TRConfs + chainProxy);
-    const hiddifyHash = base64EncodeUnicode( isFragment ? `💦 ${atob('QlBC')} Fragment` : `💦 ${atob('QlBC')} Normal`);
-    
+    const hiddifyHash = base64EncodeUnicode(isFragment ? `💦 ${atob('QlBC')} Fragment` : `💦 ${atob('QlBC')} Normal`);
+
     return new Response(configs, {
         status: 200,
         headers: {

@@ -1,5 +1,6 @@
-import { getConfigAddresses, extractWireguardParams, generateRemark, randomUpperCase, getRandomPath, isIPv6, isIPv4, isDomain, getDomain } from './helpers';
+import { getConfigAddresses, extractWireguardParams, generateRemark, randomUpperCase, isIPv6, isIPv4, isDomain, getDomain, generateWsPath, parseHostPort } from './helpers';
 import { getDataset } from '../kv/handlers';
+import { globalConfig, httpConfig } from '../helpers/init';
 
 async function buildClashDNS(isChain, isWarp) {
     const settings = globalThis.settings;
@@ -169,11 +170,10 @@ function buildClashRoutingRules(isWarp) {
     return { rules, ruleProviders };
 }
 
-function buildClashVLOutbound(remark, address, port, host, sni, proxyIPs, allowInsecure) {
+function buildClashVLOutbound(remark, address, port, host, sni, allowInsecure) {
     const settings = globalThis.settings;
-    const tls = globalThis.defaultHttpsPorts.includes(port) ? true : false;
+    const tls = httpConfig.defaultHttpsPorts.includes(port) ? true : false;
     const addr = isIPv6(address) ? address.replace(/\[|\]/g, '') : address;
-    const path = `/${getRandomPath(16)}${proxyIPs.length ? `/${btoa(proxyIPs.join(','))}` : ''}`;
     const ipVersion = settings.VLTRenableIPv6 ? "dual" : "ipv4";
     const fingerprint = settings.fingerprint === "randomized" ? "random" : settings.fingerprint;
 
@@ -182,15 +182,15 @@ function buildClashVLOutbound(remark, address, port, host, sni, proxyIPs, allowI
         "type": atob('dmxlc3M='),
         "server": addr,
         "port": port,
-        "uuid": globalThis.userID,
+        "uuid": globalConfig.userID,
+        "udp": false,
         "packet-encoding": "packetaddr",
         "ip-version": ipVersion,
         "tls": tls,
         "network": "ws",
         "tfo": true,
-        "mptcp": true,
         "ws-opts": {
-            "path": path,
+            "path": generateWsPath("vl"),
             "headers": { "Host": host },
             "max-early-data": 2560,
             "early-data-header-name": "Sec-WebSocket-Protocol"
@@ -209,10 +209,9 @@ function buildClashVLOutbound(remark, address, port, host, sni, proxyIPs, allowI
     return outbound;
 }
 
-function buildClashTROutbound(remark, address, port, host, sni, proxyIPs, allowInsecure) {
+function buildClashTROutbound(remark, address, port, host, sni, allowInsecure) {
     const settings = globalThis.settings;
     const addr = isIPv6(address) ? address.replace(/\[|\]/g, '') : address;
-    const path = `/tr${getRandomPath(16)}${proxyIPs.length ? `/${btoa(proxyIPs.join(','))}` : ''}`;
     const ipVersion = settings.VLTRenableIPv6 ? "dual" : "ipv4";
     const fingerprint = settings.fingerprint === "randomized" ? "random" : settings.fingerprint;
 
@@ -221,14 +220,14 @@ function buildClashTROutbound(remark, address, port, host, sni, proxyIPs, allowI
         "type": atob('dHJvamFu'),
         "server": addr,
         "port": port,
-        "password": globalThis.TRPassword,
+        "password": globalConfig.TrPass,
+        "udp": false,
         "ip-version": ipVersion,
         "tls": true,
         "network": "ws",
         "tfo": true,
-        "mptcp": true,
         "ws-opts": {
-            "path": path,
+            "path": generateWsPath("tr"),
             "headers": { "Host": host },
             "max-early-data": 2560,
             "early-data-header-name": "Sec-WebSocket-Protocol"
@@ -242,10 +241,7 @@ function buildClashTROutbound(remark, address, port, host, sni, proxyIPs, allowI
 
 function buildClashWarpOutbound(warpConfigs, remark, endpoint, chain, isPro) {
     const settings = globalThis.settings;
-    const ipv6Regex = /\[(.*?)\]/;
-    const portRegex = /[^:]*$/;
-    const endpointServer = endpoint.includes('[') ? endpoint.match(ipv6Regex)[1] : endpoint.split(':')[0];
-    const endpointPort = endpoint.includes('[') ? +endpoint.match(portRegex)[0] : +endpoint.split(':')[1];
+    const { host, port } = parseHostPort(endpoint);
     const ipVersion = settings.warpEnableIPv6 ? "dual" : "ipv4";
 
     const {
@@ -262,8 +258,8 @@ function buildClashWarpOutbound(warpConfigs, remark, endpoint, chain, isPro) {
         "ipv6": warpIPv6,
         "ip-version": ipVersion,
         "private-key": privateKey,
-        "server": chain ? "162.159.192.1" : endpointServer,
-        "port": chain ? 2408 : endpointPort,
+        "server": chain ? "162.159.192.1" : host,
+        "port": chain ? 2408 : port,
         "public-key": publicKey,
         "allowed-ips": ["0.0.0.0/0", "::/0"],
         "reserved": reserved,
@@ -444,7 +440,7 @@ export async function getClashWarpConfig(request, env, isPro) {
 }
 
 export async function getClashNormalConfig(env) {
-    const { settings, hostName } = globalThis;
+    const settings = globalThis.settings;
     let chainProxy;
     
     if (settings.outProxy) {
@@ -480,8 +476,8 @@ export async function getClashNormalConfig(env) {
                 let VLOutbound, TROutbound;
                 const isCustomAddr = settings.customCdnAddrs.includes(addr);
                 const configType = isCustomAddr ? 'C' : '';
-                const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(hostName);
-                const host = isCustomAddr ? settings.customCdnHost : hostName;
+                const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(httpConfig.hostName);
+                const host = isCustomAddr ? settings.customCdnHost : httpConfig.hostName;
                 const tag = generateRemark(protocolIndex, port, addr, settings.cleanIPs, protocol, configType).replace(' : ', ' - ');
 
                 if (protocol === atob('VkxFU1M=')) {
@@ -491,7 +487,6 @@ export async function getClashNormalConfig(env) {
                         port,
                         host,
                         sni,
-                        settings.proxyIPs,
                         isCustomAddr
                     );
 
@@ -499,14 +494,13 @@ export async function getClashNormalConfig(env) {
                     tags.push(tag);
                 }
 
-                if (protocol === atob('VHJvamFu') && globalThis.defaultHttpsPorts.includes(port)) {
+                if (protocol === atob('VHJvamFu') && httpConfig.defaultHttpsPorts.includes(port)) {
                     TROutbound = buildClashTROutbound(
                         chainProxy ? `proxy-${proxyIndex}` : tag,
                         addr,
                         port,
                         host,
                         sni,
-                        settings.proxyIPs,
                         isCustomAddr
                     );
 
@@ -582,7 +576,7 @@ const clashConfigTemp = {
         "enable": true,
         "force-dns-mapping": true,
         "parse-pure-ip": true,
-        "override-destination": false,
+        "override-destination": true,
         "sniff": {
             "HTTP": {
                 "ports": [80, 8080, 8880, 2052, 2082, 2086, 2095]

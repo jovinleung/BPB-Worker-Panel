@@ -1,4 +1,5 @@
 import { getDomain, resolveDNS } from '../cores-configs/helpers';
+import { httpConfig } from '../helpers/init';
 import { fetchWarpConfigs } from '../protocols/warp';
 
 export async function getDataset(request, env) {
@@ -18,7 +19,7 @@ export async function getDataset(request, env) {
         warpConfigs = configs;
     }
 
-    if (globalThis.panelVersion !== proxySettings.panelVersion) proxySettings = await updateDataset(request, env);
+    if (httpConfig.panelVersion !== proxySettings.panelVersion) proxySettings = await updateDataset(request, env);
     return { proxySettings, warpConfigs }
 }
 
@@ -65,7 +66,9 @@ export async function updateDataset(request, env) {
         localDNS: populateField('localDNS', '8.8.8.8'),
         antiSanctionDNS: populateField('antiSanctionDNS', '78.157.42.100'),
         VLTRFakeDNS: populateField('VLTRFakeDNS', false),
+        proxyIPMode: populateField('proxyIPMode', 'proxyip'),
         proxyIPs: populateField('proxyIPs', []),
+        prefixes: populateField('prefixes', []),
         outProxy: populateField('outProxy', ''),
         outProxyParams: populateField('outProxy', {}, field => extractChainProxyParams(field)),
         cleanIPs: populateField('cleanIPs', []),
@@ -77,7 +80,7 @@ export async function updateDataset(request, env) {
         VLConfigs: populateField('VLConfigs', true),
         TRConfigs: populateField('TRConfigs', true),
         ports: populateField('ports', [443]),
-        fingerprint: populateField('fingerprint', 'randomized'),
+        fingerprint: populateField('fingerprint', 'chrome'),
         fragmentLengthMin: populateField('fragmentLengthMin', 100),
         fragmentLengthMax: populateField('fragmentLengthMax', 200),
         fragmentIntervalMin: populateField('fragmentIntervalMin', 1),
@@ -128,7 +131,7 @@ export async function updateDataset(request, env) {
         amneziaNoiseCount: populateField('amneziaNoiseCount', 5),
         amneziaNoiseSizeMin: populateField('amneziaNoiseSizeMin', 50),
         amneziaNoiseSizeMax: populateField('amneziaNoiseSizeMax', 100),
-        panelVersion: globalThis.panelVersion
+        panelVersion: httpConfig.panelVersion
     };
 
     try {

@@ -1,5 +1,6 @@
-import { getConfigAddresses, extractWireguardParams, generateRemark, randomUpperCase, getRandomPath, isIPv6, isDomain, base64ToDecimal, getDomain } from './helpers';
+import { getConfigAddresses, extractWireguardParams, generateRemark, randomUpperCase, isIPv6, isDomain, base64ToDecimal, getDomain, generateWsPath, parseHostPort } from './helpers';
 import { getDataset } from '../kv/handlers';
+import { globalConfig, httpConfig } from '../helpers/init';
 
 async function buildSingBoxDNS(isWarp) {
     const settings = globalThis.settings;
@@ -297,16 +298,16 @@ function buildSingBoxRoutingRules(isWarp) {
 
 function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure, isFragment) {
     const settings = globalThis.settings;
-    const path = `/${getRandomPath(16)}${settings.proxyIPs.length ? `/${btoa(settings.proxyIPs.join(','))}` : ''}`;
-    const tls = globalThis.defaultHttpsPorts.includes(port) ? true : false;
+    const tls = httpConfig.defaultHttpsPorts.includes(port) ? true : false;
 
     const outbound = {
         tag: remark,
         type: atob('dmxlc3M='),
         server: address,
         server_port: port,
-        uuid: globalThis.userID,
+        uuid: globalConfig.userID,
         network: "tcp",
+        tcp_fast_open: true,
         packet_encoding: "",
         transport: {
             early_data_header_name: "Sec-WebSocket-Protocol",
@@ -314,11 +315,9 @@ function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure,
             headers: {
                 Host: host
             },
-            path: path,
+            path: generateWsPath("vl"),
             type: "ws"
-        },
-        tcp_fast_open: true,
-        tcp_multi_path: true
+        }
     };
 
     if (tls) outbound.tls = {
@@ -338,27 +337,25 @@ function buildSingBoxVLOutbound(remark, address, port, host, sni, allowInsecure,
 
 function buildSingBoxTROutbound(remark, address, port, host, sni, allowInsecure, isFragment) {
     const settings = globalThis.settings;
-    const path = `/tr${getRandomPath(16)}${settings.proxyIPs.length ? `/${btoa(settings.proxyIPs.join(','))}` : ''}`;
-    const tls = globalThis.defaultHttpsPorts.includes(port) ? true : false;
+    const tls = httpConfig.defaultHttpsPorts.includes(port) ? true : false;
 
     const outbound = {
         tag: remark,
         type: atob('dHJvamFu'),
-        password: globalThis.TRPassword,
+        password: globalConfig.TrPass,
         server: address,
         server_port: port,
         network: "tcp",
+        tcp_fast_open: true,
         transport: {
             early_data_header_name: "Sec-WebSocket-Protocol",
             max_early_data: 2560,
             headers: {
                 Host: host
             },
-            path: path,
+            path: generateWsPath("tr"),
             type: "ws"
-        },
-        tcp_fast_open: true,
-        tcp_multi_path: true
+        }
     }
 
     if (tls) outbound.tls = {
@@ -378,12 +375,9 @@ function buildSingBoxTROutbound(remark, address, port, host, sni, allowInsecure,
 
 function buildSingBoxWarpOutbound(warpConfigs, remark, endpoint, chain) {
     const settings = globalThis.settings;
-    const ipv6Regex = /\[(.*?)\]/;
-    const portRegex = /[^:]*$/;
-    const endpointServer = endpoint.includes('[') ? endpoint.match(ipv6Regex)[1] : endpoint.split(':')[0];
-    const endpointPort = endpoint.includes('[') ? +endpoint.match(portRegex)[0] : +endpoint.split(':')[1];
-    const server = chain ? "162.159.192.1" : endpointServer;
-    const port = chain ? 2408 : endpointPort;
+    const { host, port } = parseHostPort(endpoint);
+    const server = chain ? "162.159.192.1" : host;
+    const finalPort = chain ? 2408 : port;
 
     const {
         warpIPv6,
@@ -403,7 +397,7 @@ function buildSingBoxWarpOutbound(warpConfigs, remark, endpoint, chain) {
         peers: [
             {
                 address: server,
-                port: port,
+                port: finalPort,
                 public_key: publicKey,
                 reserved: base64ToDecimal(reserved),
                 allowed_ips: [
@@ -528,6 +522,7 @@ async function buildSingBoxConfig(selectorTags, urlTestTags, secondUrlTestTags, 
         tag: isWarp ? `💦 Warp - Best Ping 🚀` : '💦 Best Ping 💥',
         outbounds: urlTestTags,
         url: "https://www.gstatic.com/generate_204",
+        interrupt_exist_connections: false,
         interval: isWarp ? `${settings.bestWarpInterval}s` : `${settings.bestVLTRInterval}s`
     };
 
@@ -611,7 +606,7 @@ export async function getSingBoxCustomConfig(env, isFragment) {
     }
 
     const ports = isFragment
-        ? settings.ports.filter(port => globalThis.defaultHttpsPorts.includes(port))
+        ? settings.ports.filter(port => httpConfig.defaultHttpsPorts.includes(port))
         : settings.ports;
 
     protocols.forEach(protocol => {
@@ -621,8 +616,8 @@ export async function getSingBoxCustomConfig(env, isFragment) {
                 let VLOutbound, TROutbound;
                 const isCustomAddr = settings.customCdnAddrs.includes(addr);
                 const configType = isCustomAddr ? 'C' : '';
-                const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(globalThis.hostName);
-                const host = isCustomAddr ? settings.customCdnHost : globalThis.hostName;
+                const sni = isCustomAddr ? settings.customCdnSni : randomUpperCase(httpConfig.hostName);
+                const host = isCustomAddr ? settings.customCdnHost : httpConfig.hostName;
                 const tag = generateRemark(protocolIndex, port, addr, settings.cleanIPs, protocol, configType);
 
                 if (protocol === atob('VkxFU1M=')) {
@@ -712,7 +707,8 @@ const singboxConfigTemp = {
         {
             type: "selector",
             tag: "✅ Selector",
-            outbounds: []
+            outbounds: [],
+            interrupt_exist_connections: false
         },
         {
             type: "direct",
