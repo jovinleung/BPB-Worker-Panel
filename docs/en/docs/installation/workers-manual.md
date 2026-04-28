@@ -1,14 +1,16 @@
-# :material-new-box:{ .md .middle } Installation via Cloudflare Workers
+# :material-new-box:{ .md .middle } Workers manual installation
+
+It is highly recommended to use [Wizard installation](./wizard.md) to avoid Cloudflare 1101 error, user errors and also save time to setup panel.
 
 ## Installation
 
 ### 1. Create Cloudflare Account
 
-If you don’t have a Cloudflare account, create one [here](https://dash.cloudflare.com/sign-up). You only need an email for registration. Due to Cloudflare’s restrictions, use a reputable email provider like Gmail.
+If you don’t have a Cloudflare account, create one [from here](https://dash.cloudflare.com/sign-up). You only need an email for registration. Due to Cloudflare’s restrictions, use a reputable email provider like Gmail.
 
 ### 2. Create worker
 
-First, download the Worker code from [here](https://github.com/bia-pain-bache/BPB-Worker-Panel/releases/latest/download/worker.js).
+First, download the Worker code from [from here](https://github.com/bia-pain-bache/BPB-Worker-Panel/releases/latest/download/worker.js).
 
 In your Cloudflare account, navigate to the `Developer Platform` tab and click `Create application`, from `Workers` tab find `Start with Hello World!` and `Get started`.
 
@@ -44,7 +46,7 @@ In the KV section, click `Create`, give it a name (e.g., Test), and click `Add`.
 
 Again, go to the `Developer Platform` section, open the Worker you just created, go to `Bindings`. Click `Add binding` and choose `KV Namespace`. From the dropdown, select the KV you just created (e.g., Test). What’s important is the first field — it **must** be set to `kv`. Then click `Deploy`.
 
-![Bind KV](../images/bind-kv.jpg)
+![Bind KV](../images/workers-bind-kv.jpg)
 
 ### 4. Set UUID, Trojan password and Subscription path
 
@@ -70,12 +72,7 @@ To change the Proxy IP, go to `Workers & Pages`, open your Worker, then go to `S
 ![Workers env variable](../images/workers-variables.jpg)
 
 Click `Add`, write `PROXY_IP` (uppercase) as the `Variable name`.
-
-You can get IPs from the link below — it shows multiple IPs along with their regions and ISPs. Pick one or more:
-
-```text
-https://www.nslookup.io/domains/bpb.yousef.isegaro.com/dns-records/
-```
+You can check available Proxy IPs by clicking the icon beside `Proxy IPs / Domains` field in the panel or visiting `/proxy-ip` in browser, which lists IPs by region and ISP.
 
 ![Proxy IPs](../images/proxy-ips.jpg)
 

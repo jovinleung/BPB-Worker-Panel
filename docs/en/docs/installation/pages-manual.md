@@ -1,10 +1,12 @@
-# :material-new-box:{ .md .middle } Pages Setup - Direct Upload Method
+# :material-new-box:{ .md .middle } Pages manual installation (Direct Upload)
+
+It is highly recommended to use [Wizard installation](./wizard.md) to avoid Cloudflare 1101 error, user errors and also save time to setup panel.
 
 ## Steps
 
 ### 1. Create Cloudflare Account
 
-If you don’t have a Cloudflare account, create one [here](https://dash.cloudflare.com/sign-up). You only need an email for registration. Due to Cloudflare’s restrictions, use a reputable email provider like Gmail.
+If you don’t have a Cloudflare account, create one [from here](https://dash.cloudflare.com/sign-up). You only need an email for registration. Due to Cloudflare’s restrictions, use a reputable email provider like Gmail.
 
 ### 2. Create Pages Project
 
@@ -44,7 +46,7 @@ Return to the `Workers & Pages` section and open your Pages project. Go to the `
 
 In the `Bindings` section, click `Add` and select `KV Namespace`. Set the `Variable name` to `kv` (exactly as shown) and select the KV created earlier for `KV namespace`. Click `Save`.
 
-![Pages Application](../images/bind-kv.jpg)
+![Pages Application](../images/pages-bind-kv.jpg)
 
 The KV setup is now complete.
 
@@ -71,11 +73,8 @@ In the project’s `Settings` section, open `Variables and Secrets`:
 
 ![Pages Application](../images/pages-env-vars.jpg)
 
-Click `Add` and enter `PROXY_IP` (in capital letters) in the first box. Obtain IPs from the following link, which lists IPs from various regions and ISPs:
-
-```text
-https://www.nslookup.io/domains/bpb.yousef.isegaro.com/dns-records/
-```
+Click `Add` and enter `PROXY_IP` (in capital letters) in the first box.
+You can check available Proxy IPs by clicking the icon beside `Proxy IPs / Domains` field in the panel or visiting `/proxy-ip` in browser, which lists IPs by region and ISP.
 
 ![Pages Application](../images/proxy-ips.jpg)
 
